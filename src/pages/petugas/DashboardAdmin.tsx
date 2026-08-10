@@ -110,6 +110,12 @@ export default function DashboardAdmin() {
     kode: '', judul: '', pengarang: '', penerbit: '', tahun: '', kategori: '', stok: 0
   });
 
+  const [showFormAnggota, setShowFormAnggota] = useState(false);
+  const [isEditingAnggota, setIsEditingAnggota] = useState(false);
+  const [formAnggota, setFormAnggota] = useState<Anggota>({
+    kode: '', nama: '', jenis_kelamin: 'L', alamat: '', no_telepon: '', email: ''
+  });
+
   const fetchData = useCallback(async () => {
     try {
       const [resBuku, resAnggota, resPinjam] = await Promise.all([
@@ -195,6 +201,37 @@ export default function DashboardAdmin() {
         Swal.fire({ icon: 'error', title: 'Gagal menghapus', confirmButtonColor: '#44A1A4' });
       }
     }
+  };
+
+  const handleTambahAtauEditAnggota = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const url = isEditingAnggota ? `http://localhost:5000/api/anggota/${formAnggota.kode}` : 'http://localhost:5000/api/anggota';
+      const method = isEditingAnggota ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formAnggota),
+      });
+      if (res.ok) {
+        Swal.fire({ icon: 'success', title: `Anggota ${isEditingAnggota ? 'Diupdate' : 'Ditambahkan'}!`, timer: 1200, showConfirmButton: false });
+        setFormAnggota({ kode: '', nama: '', jenis_kelamin: 'L', alamat: '', no_telepon: '', email: '' });
+        setShowFormAnggota(false);
+        setIsEditingAnggota(false);
+        fetchData();
+      } else {
+        const d = await res.json();
+        Swal.fire({ icon: 'error', title: 'Gagal', text: d.error, confirmButtonColor: '#44A1A4' });
+      }
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal memproses data anggota', confirmButtonColor: '#44A1A4' });
+    }
+  };
+
+  const startEditAnggota = (a: Anggota) => {
+    setFormAnggota(a);
+    setIsEditingAnggota(true);
+    setShowFormAnggota(true);
   };
 
   const handleHapusAnggota = async (kode: string, nama: string) => {
@@ -414,6 +451,68 @@ export default function DashboardAdmin() {
             <StatCard label="Total Anggota" value={anggota.length} icon={<FiUsers size={22} className="text-primary" />} color="bg-teal-50" />
             <StatCard label="Sedang Meminjam" value={pinjamAktif.length} icon={<FiClock size={22} className="text-orange-500" />} color="bg-orange-50" />
           </div>
+
+          <div className="flex justify-end">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => {
+                setShowFormAnggota(!showFormAnggota);
+                if (!showFormAnggota) {
+                  setIsEditingAnggota(false);
+                  setFormAnggota({ kode: '', nama: '', jenis_kelamin: 'L', alamat: '', no_telepon: '', email: '' });
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl shadow-sm shadow-primary/30 hover:bg-primary-dark transition-colors"
+            >
+              <FiPlus size={16} />
+              Tambah Anggota
+            </motion.button>
+          </div>
+
+          {showFormAnggota && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl p-6 border border-primary/20 shadow-sm"
+            >
+              <h3 className="font-bold text-gray-800 mb-5">{isEditingAnggota ? 'Form Edit Anggota' : 'Form Tambah Anggota Baru'}</h3>
+              <form onSubmit={handleTambahAtauEditAnggota} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Kode Anggota *</label>
+                  <input required disabled={isEditingAnggota} type="text" placeholder="Lanjutkan Nomer Anggota Terakhir" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all disabled:opacity-50" value={formAnggota.kode} onChange={e => setFormAnggota({ ...formAnggota, kode: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nama Lengkap *</label>
+                  <input required type="text" placeholder="Nama Lengkap" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formAnggota.nama} onChange={e => setFormAnggota({ ...formAnggota, nama: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Jenis Kelamin *</label>
+                  <select required className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formAnggota.jenis_kelamin} onChange={e => setFormAnggota({ ...formAnggota, jenis_kelamin: e.target.value })}>
+                    <option value="L">Laki-Laki (L)</option>
+                    <option value="P">Perempuan (P)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Email</label>
+                  <input type="email" placeholder="email@contoh.com" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formAnggota.email} onChange={e => setFormAnggota({ ...formAnggota, email: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">No. Telepon</label>
+                  <input type="text" placeholder="0812..." className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formAnggota.no_telepon} onChange={e => setFormAnggota({ ...formAnggota, no_telepon: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Alamat</label>
+                  <input type="text" placeholder="Alamat..." className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formAnggota.alamat} onChange={e => setFormAnggota({ ...formAnggota, alamat: e.target.value })} />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-3 items-end mt-2">
+                  <button type="button" onClick={() => setShowFormAnggota(false)} className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Batal</button>
+                  <button type="submit" className="px-5 py-2.5 text-sm font-semibold text-white bg-primary rounded-xl hover:bg-primary-dark transition-colors shadow-sm shadow-primary/30">Simpan</button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -441,9 +540,14 @@ export default function DashboardAdmin() {
                       <td className="px-5 py-4 text-gray-500 hidden sm:table-cell">{a.email}</td>
                       <td className="px-5 py-4 text-gray-400 hidden lg:table-cell">{a.no_telepon}</td>
                       <td className="px-5 py-4 text-center">
-                        <button onClick={() => handleHapusAnggota(a.kode, a.nama)} className="px-3 py-1.5 bg-red-50 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors">
-                          Banned
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => startEditAnggota(a)} className="px-3 py-1.5 bg-blue-50 text-blue-500 text-xs font-semibold rounded-lg hover:bg-blue-100 transition-colors">
+                            Edit
+                          </button>
+                          <button onClick={() => handleHapusAnggota(a.kode, a.nama)} className="px-3 py-1.5 bg-red-50 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors">
+                            Banned
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

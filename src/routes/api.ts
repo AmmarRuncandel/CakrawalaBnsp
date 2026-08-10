@@ -16,7 +16,7 @@ import { Router } from 'express';
 import { login } from '../controllers/authController';
 import { getBuku, tambahBuku, hapusBuku } from '../controllers/bukuController';
 import { getPeminjaman, getPeminjamanByAnggota, pinjamBuku, kembalikanBuku } from '../controllers/peminjamanController';
-import { getAnggota, hapusAnggota } from '../controllers/anggotaController';
+import { getAnggota, hapusAnggota, tambahAnggota, editAnggota } from '../controllers/anggotaController';
 
 const router = Router();
 
@@ -44,8 +44,12 @@ router.put('/peminjaman/:id/kembali', kembalikanBuku);
 
 // ─── ANGGOTA ─────────────────────────────────────────────────
 // GET    /api/anggota      → Semua anggota join tabel users
+// POST   /api/anggota      → Tambah anggota baru
+// PUT    /api/anggota/:id  → Edit anggota
 // DELETE /api/anggota/:id  → Banned anggota (hapus user → cascade anggota+peminjaman)
 router.get('/anggota', getAnggota);
+router.post('/anggota', tambahAnggota);
+router.put('/anggota/:id', editAnggota);
 router.delete('/anggota/:id', hapusAnggota);
 
 export default router;

@@ -16,6 +16,7 @@
  */
 
 import type { Request, Response } from 'express';
+import type { RowDataPacket } from 'mysql2';
 import db from '../config/db';
 
 /**
@@ -52,6 +53,46 @@ export const hapusAnggota = async (req: Request, res: Response): Promise<void> =
 
     res.json({ message: 'Anggota berhasil dihapus' });
   } catch {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+export const tambahAnggota = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { kode, nama, jenis_kelamin, alamat, no_telepon, email } = req.body;
+    
+    // Cek apakah kode anggota sudah ada
+    const [exist] = await db.query<RowDataPacket[]>('SELECT kode FROM anggota WHERE kode = ?', [kode]);
+    if (exist.length > 0) {
+      res.status(400).json({ error: 'Kode anggota sudah terdaftar' });
+      return;
+    }
+
+    await db.query(
+      'INSERT INTO anggota (kode, nama, jenis_kelamin, alamat, no_telepon, email) VALUES (?, ?, ?, ?, ?, ?)',
+      [kode, nama, jenis_kelamin, alamat, no_telepon, email]
+    );
+
+    res.json({ message: 'Anggota berhasil ditambahkan' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+
+export const editAnggota = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { nama, jenis_kelamin, alamat, no_telepon, email } = req.body;
+    
+    await db.query(
+      'UPDATE anggota SET nama = ?, jenis_kelamin = ?, alamat = ?, no_telepon = ?, email = ? WHERE kode = ?',
+      [nama, jenis_kelamin, alamat, no_telepon, email, id]
+    );
+
+    res.json({ message: 'Anggota berhasil diupdate' });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };

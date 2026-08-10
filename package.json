@@ -4,11 +4,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently --kill-others --kill-others-on-fail --names FE,BE --prefix-colors cyan,green \"vite\" \"tsx src/server.ts\"",
+    "dev": "concurrently --kill-others --kill-others-on-fail --names FE,BE --prefix-colors cyan,green \"vite\" \"tsx watch src/server.ts\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "tsx src/server.ts"
+    "server": "tsx watch src/server.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",
