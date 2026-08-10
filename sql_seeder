@@ -1,0 +1,155 @@
+-- ============================================================================
+-- 0. PERSIAPAN DATABASE
+-- ============================================================================
+CREATE DATABASE IF NOT EXISTS db_perpustakaan;
+USE db_perpustakaan;
+
+-- Hapus tabel jika sudah ada (urutannya dibalik karena ada Foreign Key)
+DROP TABLE IF EXISTS peminjaman;
+DROP TABLE IF EXISTS buku;
+DROP TABLE IF EXISTS anggota;
+DROP TABLE IF EXISTS users;
+
+
+-- ============================================================================
+-- 1. PEMBUATAN STRUKTUR TABEL (DDL)
+-- ============================================================================
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('petugas', 'pengguna') NOT NULL DEFAULT 'pengguna',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE anggota (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    nama_lengkap VARCHAR(100) NOT NULL,
+    nomor_telepon VARCHAR(15) NOT NULL,
+    alamat TEXT,
+    tanggal_bergabung DATE NOT NULL,
+    CONSTRAINT fk_anggota_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE buku (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    judul VARCHAR(150) NOT NULL,
+    penulis VARCHAR(100) NOT NULL,
+    penerbit VARCHAR(100),
+    tahun_terbit YEAR,
+    stok INT NOT NULL DEFAULT 0,
+    CONSTRAINT chk_stok_minimal CHECK (stok >= 0) 
+);
+
+CREATE TABLE peminjaman (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    anggota_id INT NOT NULL,
+    buku_id INT NOT NULL,
+    tanggal_pinjam DATE NOT NULL,
+    tanggal_tenggat DATE NOT NULL, 
+    tanggal_dikembalikan DATE DEFAULT NULL,
+    status ENUM('dipinjam', 'dikembalikan') NOT NULL DEFAULT 'dipinjam',
+    denda INT DEFAULT 0,
+    CONSTRAINT fk_peminjaman_anggota FOREIGN KEY (anggota_id) REFERENCES anggota(id) ON DELETE CASCADE,
+    CONSTRAINT fk_peminjaman_buku FOREIGN KEY (buku_id) REFERENCES buku(id) ON DELETE CASCADE
+);
+
+
+-- ============================================================================
+-- 2. PEMBUATAN TRIGGER LOGIKA (Denda & Stok Otomatis)
+-- ============================================================================
+DELIMITER $$
+
+CREATE TRIGGER trg_kurangi_stok_buku
+AFTER INSERT ON peminjaman
+FOR EACH ROW
+BEGIN
+    UPDATE buku SET stok = stok - 1 WHERE id = NEW.buku_id;
+END$$
+
+CREATE TRIGGER trg_tambah_stok_buku
+AFTER UPDATE ON peminjaman
+FOR EACH ROW
+BEGIN
+    IF NEW.status = 'dikembalikan' AND OLD.status = 'dipinjam' THEN
+        UPDATE buku SET stok = stok + 1 WHERE id = NEW.buku_id;
+    END IF;
+END$$
+
+CREATE TRIGGER trg_hitung_denda
+BEFORE UPDATE ON peminjaman
+FOR EACH ROW
+BEGIN
+    IF NEW.status = 'dikembalikan' AND OLD.status = 'dipinjam' THEN
+        IF NEW.tanggal_dikembalikan > OLD.tanggal_tenggat THEN
+            SET NEW.denda = DATEDIFF(NEW.tanggal_dikembalikan, OLD.tanggal_tenggat) * 1000;
+        ELSE
+            SET NEW.denda = 0;
+        END IF;
+    END IF;
+END$$
+
+DELIMITER ;
+
+
+-- ============================================================================
+-- 3. SEEDER (DML) - DATA DUMMY AWAL
+-- ============================================================================
+
+-- A. Insert 1 Petugas dan 14 Pengguna
+INSERT INTO users (username, password, role) VALUES
+('AmmarRuncandel', 'hashedpassword123', 'petugas'),
+('pengguna01', 'pass123', 'pengguna'),
+('pengguna02', 'pass123', 'pengguna'),
+('pengguna03', 'pass123', 'pengguna'),
+('pengguna04', 'pass123', 'pengguna'),
+('pengguna05', 'pass123', 'pengguna'),
+('pengguna06', 'pass123', 'pengguna'),
+('pengguna07', 'pass123', 'pengguna'),
+('pengguna08', 'pass123', 'pengguna'),
+('pengguna09', 'pass123', 'pengguna'),
+('pengguna10', 'pass123', 'pengguna'),
+('pengguna11', 'pass123', 'pengguna'),
+('pengguna12', 'pass123', 'pengguna'),
+('pengguna13', 'pass123', 'pengguna'),
+('pengguna14', 'pass123', 'pengguna');
+
+-- B. Insert 14 Profil Anggota (Terkoneksi ke user_id 2-15)
+INSERT INTO anggota (user_id, nama_lengkap, nomor_telepon, alamat, tanggal_bergabung) VALUES
+(2, 'Andi Setiawan', '081234567801', 'Kosan Teknik, Tasikmalaya', '2026-01-10'),
+(3, 'Budi Santoso', '081234567802', 'Jl. Siliwangi No 10', '2026-01-12'),
+(4, 'Citra Lestari', '081234567803', 'Jl. Empang', '2026-02-05'),
+(5, 'Dewi Kumala', '081234567804', 'Perumahan A, Blok 2', '2026-02-15'),
+(6, 'Eko Pratama', '081234567805', 'Kosan Team 212', '2026-03-01'),
+(7, 'Fajar Nugraha', '081234567806', 'Jl. BKR Tasikmalaya', '2026-03-10'),
+(8, 'Gita Wirjawan', '081234567807', 'Jl. HZ Mustofa', '2026-04-05'),
+(9, 'Hadi Mulya', '081234567808', 'Mangkubumi', '2026-04-20'),
+(10, 'Intan Permata', '081234567809', 'Indihiang', '2026-05-01'),
+(11, 'Joko Anwar', '081234567810', 'Cihideung', '2026-05-15'),
+(12, 'Kiki Amalia', '081234567811', 'Tawang', '2026-06-02'),
+(13, 'Lutfi Hakim', '081234567812', 'Kawalu', '2026-06-10'),
+(14, 'Mila Rosa', '081234567813', 'Cibeureum', '2026-07-05'),
+(15, 'Nina Zatulini', '081234567814', 'Purbaratu', '2026-07-20');
+
+-- C. Insert 10 Buku
+INSERT INTO buku (judul, penulis, penerbit, tahun_terbit, stok) VALUES
+('Mastering Next.js & React', 'Tim Developer', 'Tech Press', 2024, 5),
+('Fundamental Node.js & Express', 'John Doe', 'Tech Press', 2023, 3),
+('Algoritma dan Struktur Data', 'Budi Harjo', 'Informatika', 2021, 4),
+('Pemrograman Web Berbasis TypeScript', 'Jane Smith', 'CodeID', 2025, 6),
+('Logika Matematika', 'Sutrisno', 'Erlangga', 2019, 2),
+('Panduan Database MySQL', 'Alex Kurniawan', 'Informatika', 2020, 5),
+('Filosofi Teras', 'Henry Manampiring', 'Kompas', 2018, 2),
+('Bumi Manusia', 'Pramoedya Ananta Toer', 'Hasta Mitra', 1980, 1),
+('Clean Code', 'Robert C. Martin', 'Prentice Hall', 2008, 3),
+('Desain Jaringan Komputer', 'Onno W. Purbo', 'Andi Publisher', 2017, 4);
+
+-- D. Insert 5 Transaksi Peminjaman
+INSERT INTO peminjaman (anggota_id, buku_id, tanggal_pinjam, tanggal_tenggat, tanggal_dikembalikan, status) VALUES
+(1, 1, '2026-08-09', '2026-08-12', NULL, 'dipinjam'),
+(2, 2, '2026-08-01', '2026-08-04', NULL, 'dipinjam'),
+(3, 3, '2026-07-20', '2026-07-23', '2026-07-22', 'dikembalikan'),
+(4, 4, '2026-08-10', '2026-08-13', NULL, 'dipinjam'),
+(5, 5, '2026-08-08', '2026-08-11', NULL, 'dipinjam');
