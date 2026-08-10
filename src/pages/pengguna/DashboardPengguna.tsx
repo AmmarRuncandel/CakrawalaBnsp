@@ -1,3 +1,24 @@
+/**
+ * ============================================================
+ * File        : DashboardPengguna.tsx
+ * Deskripsi   : Halaman dashboard untuk role 'pengguna'. Menampilkan
+ *               linear search (cariBuku) serta melihat riwayat
+ *               peminjaman mereka sendiri (lengkap dengan
+ *               estimasi denda secara real-time). Menggunakan
+ *               SweetAlert2 untuk interaksi UI modern.
+ * Fungsi      :
+ *   - DashboardPengguna  : Komponen utama halaman pengguna.
+ *   - fetchBuku          : Mengambil katalog semua buku dari API.
+ *   - fetchPeminjaman    : Mengambil riwayat peminjaman spesifik milik user.
+ *   - handleSearch       : Memfilter katalog buku berdasarkan keyword.
+ *   - handlePinjam       : Meminta persetujuan dan mengirim request pinjam ke API.
+ *   - hitungDendaRealtime: Menghitung denda secara instan berdasarkan selisih waktu.
+ * Pembuat      : Muhammad Ammar Luthfi Azzufar
+ * Tanggal Dibuat : 10-08-2026
+ * Versi        : 1.0.0
+ * ============================================================
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import Swal from 'sweetalert2';
@@ -59,29 +80,38 @@ export default function DashboardPengguna() {
     setLoadingBuku(true);
     try {
       const res = await fetch('http://localhost:5000/api/buku');
+      if (!res.ok) throw new Error('Network response was not ok');
       const data: Buku[] = await res.json();
-      setSemuaBuku(data);
-      setBukuDitampilkan(data);
+      setSemuaBuku(Array.isArray(data) ? data : []);
+      setBukuDitampilkan(Array.isArray(data) ? data : []);
     } catch (_err) {
       console.error('Gagal fetch buku:', _err);
+      setSemuaBuku([]);
+      setBukuDitampilkan([]);
     } finally {
       setLoadingBuku(false);
     }
   }, []);
 
   const fetchPeminjaman = useCallback(async () => {
-    if (!user.anggotaId) return;
+    if (!user.anggotaId) {
+      setPeminjaman([]);
+      return;
+    }
     try {
       // GET /api/peminjaman/anggota/:anggotaId — join buku, return judul
       const res = await fetch(`http://localhost:5000/api/peminjaman/anggota/${user.anggotaId}`);
+      if (!res.ok) throw new Error('Network response was not ok');
       const data: Peminjaman[] = await res.json();
-      setPeminjaman(data);
-    } catch (_err) {
-      console.error('Gagal fetch peminjaman:', _err);
+      setPeminjaman(Array.isArray(data) ? data : []);
+    } catch {
+      console.error('Gagal fetch peminjaman');
+      setPeminjaman([]);
     }
   }, [user.anggotaId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchBuku();
     fetchPeminjaman();
   }, [fetchBuku, fetchPeminjaman]);
@@ -128,7 +158,7 @@ export default function DashboardPengguna() {
         } else {
           Swal.fire({ icon: 'error', title: 'Gagal', text: data.error, confirmButtonColor: '#44A1A4' });
         }
-      } catch (_err) {
+      } catch {
         Swal.fire({ icon: 'error', title: 'Error', text: 'Terjadi kesalahan sistem.', confirmButtonColor: '#44A1A4' });
       }
     }

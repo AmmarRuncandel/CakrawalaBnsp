@@ -1,3 +1,30 @@
+/**
+ * ============================================================
+ * File        : DashboardPetugas.tsx
+ * Deskripsi   : Halaman dashboard untuk role 'petugas'. Menyediakan
+ *               4 tab: Manajemen Buku (CRUD + cariBuku O(n)),
+ *               Data Anggota (lihat & banned), Proses Pengembalian
+ *               (peminjaman aktif diurutkan urutkanPeminjaman O(n log n)
+ *               + histori keterlambatan). Semua aksi menggunakan
+ *               SweetAlert2 untuk konfirmasi dan notifikasi.
+ * Fungsi      :
+ *   - hitungDenda       : Fungsi O(1) menghitung nilai denda berdasarkan selisih waktu.
+ *   - StatCard          : Sub-komponen UI untuk kartu statistik.
+ *   - DashboardPetugas  : Komponen utama halaman petugas.
+ *   - fetchData         : Mengambil seluruh data buku, anggota, & peminjaman dari API.
+ *   - handleCariBuku    : Memfilter daftar buku menggunakan fungsi cariBuku().
+ *   - handleTambahBuku  : Menyimpan entri buku baru ke database.
+ *   - handleHapusBuku   : Menghapus buku dari sistem beserta peringatan SweetAlert.
+ *   - handleHapusAnggota: Melakukan Banned/penghapusan user dan semua datanya.
+ *   - handlePengembalian: Mengkonfirmasi dan memproses pengembalian peminjaman.
+ *   - getTitleByTab     : Mengembalikan judul header berdasarkan tab aktif.
+ *   - getSubtitleByTab  : Mengembalikan sub-judul header berdasarkan tab aktif.
+ * Pembuat      : Muhammad Ammar Luthfi Azzufar
+ * Tanggal Dibuat : 10-08-2026
+ * Versi        : 1.0.0
+ * ============================================================
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import Swal from 'sweetalert2';
@@ -92,21 +119,39 @@ export default function DashboardPetugas() {
 
   const fetchData = useCallback(async () => {
     try {
+      // Fetch paralel ketiga endpoint sekaligus untuk efisiensi.
+      // Setiap response diperiksa: jika non-OK (mis. 500), fallback ke array kosong
+      // agar render tidak crash saat .filter() / .map() dipanggil pada nilai undefined.
       const [resBuku, resAnggota, resPinjam] = await Promise.all([
-        fetch('http://localhost:5000/api/buku').then(r => r.json()),
-        fetch('http://localhost:5000/api/anggota').then(r => r.json()),
-        fetch('http://localhost:5000/api/peminjaman').then(r => r.json()),
+        fetch('http://localhost:5000/api/buku'),
+        fetch('http://localhost:5000/api/anggota'),
+        fetch('http://localhost:5000/api/peminjaman'),
       ]);
-      setBuku(resBuku);
-      setBukuTampil(resBuku);
-      setAnggota(resAnggota);
-      setPeminjaman(resPinjam);
+
+      const dataBuku    = resBuku.ok    ? await resBuku.json()    : [];
+      const dataAnggota = resAnggota.ok ? await resAnggota.json() : [];
+      const dataPinjam  = resPinjam.ok  ? await resPinjam.json()  : [];
+
+      // Pastikan nilai yang disimpan ke state selalu array (guard terhadap response error JSON)
+      setBuku(Array.isArray(dataBuku)    ? dataBuku    : []);
+      setBukuTampil(Array.isArray(dataBuku) ? dataBuku : []);
+      setAnggota(Array.isArray(dataAnggota) ? dataAnggota : []);
+      setPeminjaman(Array.isArray(dataPinjam) ? dataPinjam : []);
     } catch (_err) {
+      // Jika fetch sama sekali gagal (backend mati), isi state dengan array kosong
+      // agar komponen tetap render dengan tampilan "kosong" bukan crash putih
       console.error('Fetch error:', _err);
+      setBuku([]);
+      setBukuTampil([]);
+      setAnggota([]);
+      setPeminjaman([]);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, [fetchData]);
 
   // cariBuku — Linear Search O(n), Syarat Wajib BNSP
   const handleCariBuku = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,7 +183,7 @@ export default function DashboardPetugas() {
         const d = await res.json();
         Swal.fire({ icon: 'error', title: 'Gagal', text: d.error, confirmButtonColor: '#44A1A4' });
       }
-    } catch (_err) {
+    } catch {
       Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal menambah buku', confirmButtonColor: '#44A1A4' });
     }
   };
@@ -160,7 +205,7 @@ export default function DashboardPetugas() {
         await fetch(`http://localhost:5000/api/buku/${id}`, { method: 'DELETE' });
         Swal.fire({ icon: 'success', title: 'Terhapus!', timer: 1200, showConfirmButton: false });
         fetchData();
-      } catch (_err) {
+      } catch {
         Swal.fire({ icon: 'error', title: 'Gagal menghapus', confirmButtonColor: '#44A1A4' });
       }
     }
@@ -183,7 +228,7 @@ export default function DashboardPetugas() {
         await fetch(`http://localhost:5000/api/anggota/${id}`, { method: 'DELETE' });
         Swal.fire({ icon: 'success', title: 'Berhasil!', timer: 1200, showConfirmButton: false });
         fetchData();
-      } catch (_err) {
+      } catch {
         Swal.fire({ icon: 'error', title: 'Gagal', confirmButtonColor: '#44A1A4' });
       }
     }
@@ -202,7 +247,7 @@ export default function DashboardPetugas() {
           <div style="margin-top:16px;padding:12px;background:${estimasiDenda > 0 ? '#fef2f2' : '#f0f9f9'};border-radius:12px;text-align:center">
             ${estimasiDenda > 0
               ? `<p style="color:#ef4444;font-size:12px;font-weight:600">Denda Keterlambatan</p><p style="color:#dc2626;font-size:24px;font-weight:800">Rp ${estimasiDenda.toLocaleString('id-ID')}</p>`
-              : `<p style="color:#44A1A4;font-size:14px;font-weight:700">✓ Tepat Waktu — Tidak Ada Denda</p>`
+              : `<p style="color:#44A1A4;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#44A1A4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Tepat Waktu — Tidak Ada Denda</p>`
             }
           </div>
         </div>
@@ -221,7 +266,7 @@ export default function DashboardPetugas() {
         await fetch(`http://localhost:5000/api/peminjaman/${p.id}/kembali`, { method: 'PUT' });
         Swal.fire({ icon: 'success', title: 'Buku Dikembalikan!', timer: 1200, showConfirmButton: false });
         fetchData();
-      } catch (_err) {
+      } catch {
         Swal.fire({ icon: 'error', title: 'Error', confirmButtonColor: '#44A1A4' });
       }
     }
@@ -489,7 +534,7 @@ export default function DashboardPetugas() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
               <div className="w-3 h-3 rounded-full bg-primary"></div>
-              <h3 className="font-bold text-gray-800 text-sm">Peminjaman Aktif — Diurutkan Deadline Terdekat <span className="text-xs text-gray-400 font-normal">(urutkanPeminjaman — Timsort O(n log n))</span></h3>
+              <h3 className="font-bold text-gray-800 text-sm">Peminjaman Aktif — Diurutkan Deadline Terdekat <span className="text-xs text-gray-400 font-normal">(awasi peminjaman pengguna)</span></h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

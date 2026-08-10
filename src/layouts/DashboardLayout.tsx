@@ -1,3 +1,21 @@
+/**
+ * ============================================================
+ * File        : DashboardLayout.tsx
+ * Deskripsi   : Komponen layout wrapper untuk semua halaman dashboard.
+ *               Menyediakan sidebar navigasi (desktop) dan drawer
+ *               navigasi (mobile), header halaman dengan nama user,
+ *               Mendukung dua role: 'petugas' dan 'pengguna' dengan
+ *               menu navigasi yang berbeda.
+ * Fungsi      :
+ *   - getNavIcon     : Mengambil icon yang sesuai dengan ID menu navigasi.
+ *   - DashboardLayout: Komponen utama pembungkus (layout) halaman dashboard.
+ *   - handleLogout   : Menampilkan modal konfirmasi dan menghapus sesi user.
+ * Pembuat      : Muhammad Ammar Luthfi Azzufar
+ * Tanggal Dibuat : 10-08-2026
+ * Versi        : 1.1.0
+ * ============================================================
+ */
+
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -17,25 +35,41 @@ interface Props {
   onTabChange?: (tab: string) => void;
 }
 
-interface NavItem { id: string; label: string; icon: ReactNode; }
-
-const petugasNav: NavItem[] = [
-  { id: 'buku',        label: 'Manajemen Buku',   icon: <FiBook size={18} /> },
-  { id: 'anggota',     label: 'Data Anggota',      icon: <FiUsers size={18} /> },
-  { id: 'pengembalian',label: 'Pengembalian',       icon: <FiCheckSquare size={18} /> },
-  { id: 'laporan',     label: 'Laporan',            icon: <FiBarChart2 size={18} /> },
+// Data navigasi hanya berupa teks — TIDAK ada JSX di level modul.
+// JSX di level modul (di luar komponen) menyebabkan "Invalid hook call"
+// karena React context belum tersedia saat modul pertama kali di-import.
+const PETUGAS_NAV = [
+  { id: 'buku',         label: 'Manajemen Buku' },
+  { id: 'anggota',      label: 'Data Anggota'   },
+  { id: 'pengembalian', label: 'Pengembalian'   },
+  { id: 'laporan',      label: 'Laporan'        },
 ];
-const penggunaNav: NavItem[] = [
-  { id: 'katalog',  label: 'Katalog Buku',   icon: <FiBookOpen size={18} /> },
-  { id: 'dipinjam', label: 'Riwayat Pinjam', icon: <FiClock size={18} /> },
+const PENGGUNA_NAV = [
+  { id: 'katalog',  label: 'Katalog Buku'   },
+  { id: 'dipinjam', label: 'Riwayat Pinjam' },
 ];
 
-export default function DashboardLayout({ children, role, title, subtitle, activeTab, onTabChange }: Props) {
+// Helper fungsi murni (non-komponen) untuk mendapatkan icon berdasarkan id nav
+// Dipanggil di dalam render — aman karena bukan komponen dan tidak memakai hooks
+function getNavIcon(id: string): ReactNode {
+  const map: Record<string, ReactNode> = {
+    buku:         <FiBook size={18} />,
+    anggota:      <FiUsers size={18} />,
+    pengembalian: <FiCheckSquare size={18} />,
+    laporan:      <FiBarChart2 size={18} />,
+    katalog:      <FiBookOpen size={18} />,
+    dipinjam:     <FiClock size={18} />,
+  };
+  return map[id] ?? null;
+}
+
+export default function DashboardLayout({
+  children, role, title, subtitle, activeTab, onTabChange
+}: Props) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-
-  const nav = role === 'petugas' ? petugasNav : penggunaNav;
+  const nav = role === 'petugas' ? PETUGAS_NAV : PENGGUNA_NAV;
 
   const handleLogout = () => {
     Swal.fire({
@@ -56,7 +90,12 @@ export default function DashboardLayout({ children, role, title, subtitle, activ
     });
   };
 
-  const Sidebar = () => (
+  // ─── Konten sidebar di-inline langsung (bukan sub-komponen).
+  // Mendefinisikan komponen di dalam fungsi komponen lain (const Sidebar = () => ...)
+  // lalu memakai <Sidebar /> adalah anti-pattern yang melanggar Rules of Hooks:
+  // React menganggap "Sidebar" sebagai tipe komponen baru di setiap render,
+  // menyebabkan remount penuh dan crash "Cannot read properties of null (useContext)".
+  const sidebarContent = (
     <aside className="w-64 bg-[#1a3636] flex flex-col h-full">
       {/* Logo */}
       <div className="px-6 py-7 flex items-center gap-3 border-b border-white/10">
@@ -83,7 +122,9 @@ export default function DashboardLayout({ children, role, title, subtitle, activ
                   : 'text-white/60 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <span className={isActive ? 'text-white' : 'text-white/50'}>{item.icon}</span>
+              <span className={isActive ? 'text-white' : 'text-white/50'}>
+                {getNavIcon(item.id)}
+              </span>
               {item.label}
             </button>
           );
@@ -115,7 +156,7 @@ export default function DashboardLayout({ children, role, title, subtitle, activ
     <div className="min-h-screen bg-[#f0f9f9] flex">
       {/* Desktop Sidebar */}
       <div className="hidden md:flex flex-col h-screen sticky top-0">
-        <Sidebar />
+        {sidebarContent}
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -132,7 +173,7 @@ export default function DashboardLayout({ children, role, title, subtitle, activ
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               className="fixed left-0 top-0 h-full z-50 flex flex-col md:hidden"
             >
-              <Sidebar />
+              {sidebarContent}
             </motion.div>
           </>
         )}
@@ -147,6 +188,7 @@ export default function DashboardLayout({ children, role, title, subtitle, activ
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="md:hidden text-gray-500 hover:text-gray-800 p-1"
+                aria-label="Buka menu"
               >
                 <FiMenu size={22} />
               </button>
@@ -175,6 +217,22 @@ export default function DashboardLayout({ children, role, title, subtitle, activ
           </motion.div>
         </div>
       </main>
+
+      {/* Tombol tutup mobile sidebar — diletakkan di luar sidebar agar tidak tumpang tindih */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSidebarOpen(false)}
+            className="fixed top-4 left-56 z-[60] md:hidden bg-white rounded-full p-1.5 shadow-md text-gray-600"
+            aria-label="Tutup menu"
+          >
+            <FiX size={16} />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

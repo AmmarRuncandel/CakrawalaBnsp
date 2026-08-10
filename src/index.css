@@ -1,5 +1,26 @@
+/*
+ * ============================================================
+ * File        : index.css
+ * Deskripsi   : Global stylesheet utama aplikasi. Mengimpor
+ *               Tailwind CSS v4 dan mendefinisikan custom theme
+ *               tokens (warna primary) serta keyframe animasi
+ *               untuk elemen dekoratif (blob, float).
+ *               Class animasi (.animate-blob, .animate-float)
+ *               didefinisikan di sini karena Tailwind v4 belum
+ *               otomatis generate class dari keyframe kustom.
+ * Pembuat      : Muhammad Ammar Luthfi Azzufar
+ * Tanggal Dibuat : 10-08-2026
+ * Versi        : 1.0.0
+ * ============================================================
+ */
+
 @import "tailwindcss";
 
+/*
+ * @theme: fitur Tailwind v4 untuk mendefinisikan CSS custom properties
+ * sebagai design tokens. Nilai ini tersedia sebagai class Tailwind
+ * (mis: bg-primary, text-primary-dark) di seluruh komponen.
+ */
 @theme {
   --color-primary: #44A1A4;
   --color-primary-dark: #2d7c7e;
@@ -18,6 +39,11 @@
   }
 }
 
+/*
+ * Keyframe blob: gerakan organik menyerupai cairan.
+ * Kombinasi translate dan scale pada 3 titik (0%, 33%, 66%)
+ * menghasilkan pergerakan non-linear yang terlihat alami.
+ */
 @keyframes blob {
   0% { transform: translate(0px, 0px) scale(1); }
   33% { transform: translate(30px, -50px) scale(1.1); }
@@ -25,20 +51,28 @@
   100% { transform: translate(0px, 0px) scale(1); }
 }
 
+/*
+ * Keyframe float: gerakan naik-turun halus menggunakan easing default.
+ * Digunakan pada ikon logo di halaman Login agar tidak terasa statis.
+ */
 @keyframes float {
   0% { transform: translateY(0px); }
   50% { transform: translateY(-10px); }
   100% { transform: translateY(0px); }
 }
 
+/* Utility class untuk animasi blob (durasi 7s untuk ritme yang lambat dan organik) */
 .animate-blob {
   animation: blob 7s infinite;
 }
 
+/* Utility class untuk animasi float (3s untuk ritme bernapas yang natural) */
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
 
+/* Delay class untuk memberi offset pada blob kedua dan ketiga
+   agar tidak bergerak bersamaan (menciptakan kedalaman visual) */
 .animation-delay-2000 {
   animation-delay: 2s;
 }

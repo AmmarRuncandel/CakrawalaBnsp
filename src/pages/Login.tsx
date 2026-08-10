@@ -1,13 +1,31 @@
+/**
+ * ============================================================
+ * File        : Login.tsx
+ * Deskripsi   : Halaman autentikasi dua-panel (split-screen layout).
+ *               Panel kiri berisi branding & ilustrasi (hanya tampil
+ *               di layar besar), panel kanan berisi form login.
+ *               Mengirim kredensial ke POST /api/auth/login dan
+ *               menyimpan data user ke localStorage untuk session.
+ * Fungsi      :
+ *   - Login      : Komponen utama halaman login.
+ *   - handleLogin: Mengambil input form, memanggil API auth, dan me-routing user.
+ * Pembuat      : Muhammad Ammar Luthfi Azzufar
+ * Tanggal Dibuat : 10-08-2026
+ * Versi        : 1.0.0
+ * ============================================================
+ */
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Swal from 'sweetalert2';
-import { FiUser, FiLock, FiBookOpen, FiArrowRight } from 'react-icons/fi';
+import { FiUser, FiLock, FiBookOpen, FiArrowRight, FiEye, FiEyeOff } from 'react-icons/fi';
 
 export default function Login() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -30,7 +48,7 @@ export default function Login() {
         localStorage.setItem('user', JSON.stringify(data.user));
         Swal.fire({
           icon: 'success',
-          title: `Selamat datang! 👋`,
+          title: `Selamat datang, ${data.user.username}!`,
           text: `Halo, ${data.user.username}`,
           timer: 1400,
           showConfirmButton: false,
@@ -41,7 +59,7 @@ export default function Login() {
       } else {
         Swal.fire({ icon: 'error', title: 'Login Gagal', text: data.error || 'Username atau password salah', confirmButtonColor: '#44A1A4' });
       }
-    } catch (_err) {
+    } catch {
       Swal.fire({ icon: 'error', title: 'Koneksi Error', text: 'Tidak dapat terhubung ke server. Pastikan backend berjalan.', confirmButtonColor: '#44A1A4' });
     } finally {
       setLoading(false);
@@ -112,7 +130,7 @@ export default function Login() {
                 <input
                   type="text"
                   className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-sm"
-                  placeholder="Contoh: pengguna01"
+                  placeholder="Contoh: pengguna1"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   required
@@ -125,13 +143,20 @@ export default function Login() {
               <div className="relative">
                 <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input
-                  type="password"
-                  className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-sm"
+                  type={showPassword ? 'text' : 'password'}
+                  className="w-full pl-11 pr-12 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-sm"
                   placeholder="Masukkan password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -153,8 +178,8 @@ export default function Login() {
           <div className="mt-8 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
             <p className="text-xs font-semibold text-gray-500 mb-2">Akun Demo:</p>
             <div className="space-y-1 text-xs text-gray-500">
-              <p><span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-primary font-semibold">AmmarRuncandel</span> / <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">hashedpassword123</span> — Petugas</p>
-              <p><span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-primary font-semibold">pengguna01</span> / <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">pass123</span> — Pengguna</p>
+              <p><span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-primary font-semibold">Ammar</span> / <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">pass123</span> — Petugas</p>
+              <p><span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-primary font-semibold">pengguna1</span> / <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">pass123</span> — Pengguna</p>
             </div>
           </div>
 
