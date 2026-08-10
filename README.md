@@ -61,8 +61,8 @@ Anda dapat menggunakan akun-akun berikut untuk masuk dan mencoba sistem:
 
 | Role / Akses | Username | Password | Keterangan |
 | :--- | :--- | :--- | :--- |
-| **Petugas / Admin** | `Ammar` | `pass123` | Hak akses penuh: Manajemen Buku, Kelola Anggota, Laporan. |
-| **Pengguna / Member**| `pengguna1` | `pass123` | Hak akses terbatas: Katalog Buku, Pinjam Buku, Riwayat & Denda. |
+| **Petugas / Admin** | `admin` | `admin123` | Hak akses penuh: Manajemen Buku, Kelola Anggota, Laporan. |
+| **Pengguna / Member**| `AG001` | `ahmad@mail.com` | Hak akses terbatas: Katalog Buku, Pinjam Buku, Riwayat & Denda. |
 
 ---
 

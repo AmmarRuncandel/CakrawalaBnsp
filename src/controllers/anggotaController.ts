@@ -16,7 +16,6 @@
  */
 
 import type { Request, Response } from 'express';
-import type { RowDataPacket } from 'mysql2';
 import db from '../config/db';
 
 /**
@@ -27,11 +26,7 @@ import db from '../config/db';
  */
 export const getAnggota = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const query = `
-      SELECT a.*, u.username, u.role
-      FROM anggota a
-      JOIN users u ON a.user_id = u.id
-    `;
+    const query = `SELECT * FROM anggota`;
     const [rows] = await db.query(query);
     res.json(rows);
   } catch {
@@ -49,18 +44,11 @@ export const getAnggota = async (_req: Request, res: Response): Promise<void> =>
  */
 export const hapusAnggota = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params; // id = anggota.id, bukan users.id
+    const { id } = req.params; // id merepresentasikan kode anggota
 
-    // Cari user_id yang terhubung ke anggota ini sebelum dihapus
-    const [anggotaRows] = await db.query<RowDataPacket[]>(
-      'SELECT user_id FROM anggota WHERE id = ?',
-      [id]
-    );
-
-    if (anggotaRows.length > 0) {
-      // Hapus dari tabel users → memicu CASCADE ke anggota dan peminjaman
-      await db.query('DELETE FROM users WHERE id = ?', [anggotaRows[0].user_id]);
-    }
+    // Langsung hapus dari tabel anggota, trigger ON DELETE CASCADE 
+    // akan otomatis menghapus semua peminjaman terkait.
+    await db.query('DELETE FROM anggota WHERE kode = ?', [id]);
 
     res.json({ message: 'Anggota berhasil dihapus' });
   } catch {

@@ -40,7 +40,7 @@ export default function Login() {
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: username.trim(), password: password.trim() })
       });
       const data = await response.json();
 
@@ -54,7 +54,7 @@ export default function Login() {
           showConfirmButton: false,
           confirmButtonColor: '#44A1A4',
         }).then(() => {
-          navigate(data.user.role === 'petugas' ? '/petugas' : '/pengguna');
+          navigate(data.user.role === 'admin' ? '/admin/dashboard' : '/pengguna/dashboard');
         });
       } else {
         Swal.fire({ icon: 'error', title: 'Login Gagal', text: data.error || 'Username atau password salah', confirmButtonColor: '#44A1A4' });
@@ -130,7 +130,7 @@ export default function Login() {
                 <input
                   type="text"
                   className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all shadow-sm"
-                  placeholder="Contoh: pengguna1"
+                  placeholder="Contoh: A7X"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   required
@@ -178,8 +178,8 @@ export default function Login() {
           <div className="mt-8 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
             <p className="text-xs font-semibold text-gray-500 mb-2">Akun Demo:</p>
             <div className="space-y-1 text-xs text-gray-500">
-              <p><span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-primary font-semibold">Ammar</span> / <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">pass123</span> — Petugas</p>
-              <p><span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-primary font-semibold">pengguna1</span> / <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">pass123</span> — Pengguna</p>
+              <p><span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-primary font-semibold">admin</span> / <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">admin123</span> — Admin</p>
+              <p><span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-primary font-semibold">AG001</span> / <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">ahmad@mail.com</span> — Pengguna</p>
             </div>
           </div>
 

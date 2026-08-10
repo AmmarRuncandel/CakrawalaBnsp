@@ -1,7 +1,7 @@
 /**
  * ============================================================
- * File        : DashboardPetugas.tsx
- * Deskripsi   : Halaman dashboard untuk role 'petugas'. Menyediakan
+ * File        : DashboardAdmin.tsx
+ * Deskripsi   : Halaman dashboard untuk role 'admin'. Menyediakan
  *               4 tab: Manajemen Buku (CRUD + cariBuku O(n)),
  *               Data Anggota (lihat & banned), Proses Pengembalian
  *               (peminjaman aktif diurutkan urutkanPeminjaman O(n log n)
@@ -10,7 +10,7 @@
  * Fungsi      :
  *   - hitungDenda       : Fungsi O(1) menghitung nilai denda berdasarkan selisih waktu.
  *   - StatCard          : Sub-komponen UI untuk kartu statistik.
- *   - DashboardPetugas  : Komponen utama halaman petugas.
+ *   - DashboardAdmin    : Komponen utama halaman admin.
  *   - fetchData         : Mengambil seluruh data buku, anggota, & peminjaman dari API.
  *   - handleCariBuku    : Memfilter daftar buku menggunakan fungsi cariBuku().
  *   - handleTambahBuku  : Menyimpan entri buku baru ke database.
@@ -21,7 +21,7 @@
  *   - getSubtitleByTab  : Mengembalikan sub-judul header berdasarkan tab aktif.
  * Pembuat      : Muhammad Ammar Luthfi Azzufar
  * Tanggal Dibuat : 10-08-2026
- * Versi        : 1.0.0
+ * Versi        : 2.0.0 (Skema Baru)
  * ============================================================
  */
 
@@ -35,56 +35,50 @@ import {
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { urutkanPeminjaman, cariBuku } from '../../utils/algorithms';
 
-/**
- * Interfaces sesuai schema SQL seeder:
- * buku: id, judul, penulis, penerbit, tahun_terbit, stok
- * anggota JOIN users: id, user_id, nama_lengkap, nomor_telepon, alamat, tanggal_bergabung, username, role
- * peminjaman JOIN buku JOIN anggota: semua kolom + judul + nama_lengkap
- */
 interface Buku {
-  id: number;
+  kode: string;
   judul: string;
-  penulis: string;
+  pengarang: string;
   penerbit: string;
-  tahun_terbit: number;
+  tahun: number;
+  kategori: string;
   stok: number;
 }
 
 interface Anggota {
-  id: number;
-  user_id: number;
-  nama_lengkap: string;
-  nomor_telepon: string;
+  kode: string;
+  nama: string;
+  jenis_kelamin: string;
   alamat: string;
-  tanggal_bergabung: string;
-  username: string;
-  role: string;
+  no_telepon: string;
+  email: string;
 }
 
 interface Peminjaman {
-  id: number;
-  anggota_id: number;
-  buku_id: number;
+  kode: string;
+  kode_anggota: string;
+  kode_buku: string;
   judul: string;
-  nama_lengkap: string;
-  tanggal_pinjam: string;
-  tanggal_tenggat: string;
-  tanggal_dikembalikan: string | null;
-  status: 'dipinjam' | 'dikembalikan';
+  nama_lengkap: string; // Aliased from a.nama in Backend
+  tgl_pinjam: string;
+  jatuh_tempo: string;
+  tgl_kembali: string | null;
+  status: 'Kembali' | 'Dipinjam' | 'Terlambat';
   denda: number;
 }
 
 interface FormBuku {
+  kode: string;
   judul: string;
-  penulis: string;
+  pengarang: string;
   penerbit: string;
-  tahun_terbit: string;
+  tahun: string;
+  kategori: string;
   stok: number;
 }
 
-// Hitung denda realtime O(1)
-const hitungDenda = (tanggal_tenggat: string): number => {
-  const tenggat = new Date(tanggal_tenggat).getTime();
+const hitungDenda = (jatuh_tempo: string): number => {
+  const tenggat = new Date(jatuh_tempo).getTime();
   const sekarang = new Date().getTime();
   if (sekarang > tenggat) {
     return Math.floor((sekarang - tenggat) / (1000 * 3600 * 24)) * 1000;
@@ -92,7 +86,6 @@ const hitungDenda = (tanggal_tenggat: string): number => {
   return 0;
 };
 
-// Stat Card
 const StatCard = ({ label, value, icon, color }: { label: string; value: number | string; icon: React.ReactNode; color: string }) => (
   <div className={`bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4`}>
     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
@@ -105,7 +98,7 @@ const StatCard = ({ label, value, icon, color }: { label: string; value: number 
   </div>
 );
 
-export default function DashboardPetugas() {
+export default function DashboardAdmin() {
   const [activeTab, setActiveTab] = useState('buku');
   const [buku, setBuku] = useState<Buku[]>([]);
   const [bukuTampil, setBukuTampil] = useState<Buku[]>([]);
@@ -114,14 +107,11 @@ export default function DashboardPetugas() {
   const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [formBuku, setFormBuku] = useState<FormBuku>({
-    judul: '', penulis: '', penerbit: '', tahun_terbit: '', stok: 0
+    kode: '', judul: '', pengarang: '', penerbit: '', tahun: '', kategori: '', stok: 0
   });
 
   const fetchData = useCallback(async () => {
     try {
-      // Fetch paralel ketiga endpoint sekaligus untuk efisiensi.
-      // Setiap response diperiksa: jika non-OK (mis. 500), fallback ke array kosong
-      // agar render tidak crash saat .filter() / .map() dipanggil pada nilai undefined.
       const [resBuku, resAnggota, resPinjam] = await Promise.all([
         fetch('http://localhost:5000/api/buku'),
         fetch('http://localhost:5000/api/anggota'),
@@ -132,15 +122,11 @@ export default function DashboardPetugas() {
       const dataAnggota = resAnggota.ok ? await resAnggota.json() : [];
       const dataPinjam  = resPinjam.ok  ? await resPinjam.json()  : [];
 
-      // Pastikan nilai yang disimpan ke state selalu array (guard terhadap response error JSON)
-      setBuku(Array.isArray(dataBuku)    ? dataBuku    : []);
+      setBuku(Array.isArray(dataBuku) ? dataBuku : []);
       setBukuTampil(Array.isArray(dataBuku) ? dataBuku : []);
       setAnggota(Array.isArray(dataAnggota) ? dataAnggota : []);
       setPeminjaman(Array.isArray(dataPinjam) ? dataPinjam : []);
-    } catch (_err) {
-      // Jika fetch sama sekali gagal (backend mati), isi state dengan array kosong
-      // agar komponen tetap render dengan tampilan "kosong" bukan crash putih
-      console.error('Fetch error:', _err);
+    } catch {
       setBuku([]);
       setBukuTampil([]);
       setAnggota([]);
@@ -153,7 +139,6 @@ export default function DashboardPetugas() {
     fetchData();
   }, [fetchData]);
 
-  // cariBuku — Linear Search O(n), Syarat Wajib BNSP
   const handleCariBuku = (e: React.ChangeEvent<HTMLInputElement>) => {
     setKeywordBuku(e.target.value);
     setBukuTampil(cariBuku(buku, e.target.value));
@@ -165,18 +150,19 @@ export default function DashboardPetugas() {
       const res = await fetch('http://localhost:5000/api/buku', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // body sesuai kolom tabel buku
         body: JSON.stringify({
+          kode: formBuku.kode,
           judul: formBuku.judul,
-          penulis: formBuku.penulis,
+          pengarang: formBuku.pengarang,
           penerbit: formBuku.penerbit,
-          tahun_terbit: formBuku.tahun_terbit ? Number(formBuku.tahun_terbit) : null,
+          tahun: formBuku.tahun ? Number(formBuku.tahun) : null,
+          kategori: formBuku.kategori,
           stok: formBuku.stok,
         }),
       });
       if (res.ok) {
         Swal.fire({ icon: 'success', title: 'Buku Ditambahkan!', timer: 1200, showConfirmButton: false });
-        setFormBuku({ judul: '', penulis: '', penerbit: '', tahun_terbit: '', stok: 0 });
+        setFormBuku({ kode: '', judul: '', pengarang: '', penerbit: '', tahun: '', kategori: '', stok: 0 });
         setShowForm(false);
         fetchData();
       } else {
@@ -188,7 +174,7 @@ export default function DashboardPetugas() {
     }
   };
 
-  const handleHapusBuku = async (id: number, judul: string) => {
+  const handleHapusBuku = async (kode: string, judul: string) => {
     const result = await Swal.fire({
       title: 'Hapus Buku?',
       html: `<span class="text-gray-600">Buku <b>${judul}</b> akan dihapus permanen.</span>`,
@@ -202,7 +188,7 @@ export default function DashboardPetugas() {
     });
     if (result.isConfirmed) {
       try {
-        await fetch(`http://localhost:5000/api/buku/${id}`, { method: 'DELETE' });
+        await fetch(`http://localhost:5000/api/buku/${kode}`, { method: 'DELETE' });
         Swal.fire({ icon: 'success', title: 'Terhapus!', timer: 1200, showConfirmButton: false });
         fetchData();
       } catch {
@@ -211,7 +197,7 @@ export default function DashboardPetugas() {
     }
   };
 
-  const handleHapusAnggota = async (id: number, nama: string) => {
+  const handleHapusAnggota = async (kode: string, nama: string) => {
     const result = await Swal.fire({
       title: 'Banned Anggota?',
       html: `<span class="text-gray-600">Akun <b>${nama}</b> dan semua datanya akan dihapus permanen (ON DELETE CASCADE).</span>`,
@@ -225,7 +211,7 @@ export default function DashboardPetugas() {
     });
     if (result.isConfirmed) {
       try {
-        await fetch(`http://localhost:5000/api/anggota/${id}`, { method: 'DELETE' });
+        await fetch(`http://localhost:5000/api/anggota/${kode}`, { method: 'DELETE' });
         Swal.fire({ icon: 'success', title: 'Berhasil!', timer: 1200, showConfirmButton: false });
         fetchData();
       } catch {
@@ -235,7 +221,7 @@ export default function DashboardPetugas() {
   };
 
   const handlePengembalian = async (p: Peminjaman) => {
-    const estimasiDenda = hitungDenda(p.tanggal_tenggat);
+    const estimasiDenda = hitungDenda(p.jatuh_tempo);
     const result = await Swal.fire({
       title: 'Proses Pengembalian',
       html: `
@@ -262,8 +248,7 @@ export default function DashboardPetugas() {
     });
     if (result.isConfirmed) {
       try {
-        // PUT /api/peminjaman/:id/kembali — trigger SQL otomatis hitung denda & tambah stok
-        await fetch(`http://localhost:5000/api/peminjaman/${p.id}/kembali`, { method: 'PUT' });
+        await fetch(`http://localhost:5000/api/peminjaman/${p.kode}/kembali`, { method: 'PUT' });
         Swal.fire({ icon: 'success', title: 'Buku Dikembalikan!', timer: 1200, showConfirmButton: false });
         fetchData();
       } catch {
@@ -272,11 +257,10 @@ export default function DashboardPetugas() {
     }
   };
 
-  // urutkanPeminjaman — Timsort O(n log n), Syarat Wajib BNSP
-  const pinjamAktif = urutkanPeminjaman(peminjaman.filter(p => p.status === 'dipinjam'));
+  const pinjamAktif = urutkanPeminjaman(peminjaman.filter(p => p.status === 'Dipinjam' || p.status === 'Terlambat'));
   const pinjamTelat = [...peminjaman]
-    .filter(p => p.status === 'dikembalikan' && p.denda > 0)
-    .sort((a, b) => new Date(b.tanggal_dikembalikan!).getTime() - new Date(a.tanggal_dikembalikan!).getTime());
+    .filter(p => p.status === 'Kembali' && p.denda > 0)
+    .sort((a, b) => new Date(b.tgl_kembali!).getTime() - new Date(a.tgl_kembali!).getTime());
 
   const getTitleByTab = () => {
     const map: Record<string, string> = {
@@ -297,7 +281,7 @@ export default function DashboardPetugas() {
 
   return (
     <DashboardLayout
-      role="petugas"
+      role="admin"
       title={getTitleByTab()}
       subtitle={getSubtitleByTab()}
       activeTab={activeTab}
@@ -306,7 +290,6 @@ export default function DashboardPetugas() {
       {/* ─── TAB BUKU ─── */}
       {activeTab === 'buku' && (
         <div className="space-y-5">
-          {/* Stats Row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Total Buku" value={buku.length} icon={<FiBook size={22} className="text-primary" />} color="bg-teal-50" />
             <StatCard label="Total Stok" value={buku.reduce((a, b) => a + b.stok, 0)} icon={<FiBarChart2 size={22} className="text-blue-500" />} color="bg-blue-50" />
@@ -314,7 +297,6 @@ export default function DashboardPetugas() {
             <StatCard label="Dipinjam Aktif" value={pinjamAktif.length} icon={<FiClock size={22} className="text-purple-500" />} color="bg-purple-50" />
           </div>
 
-          {/* Toolbar */}
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="relative flex-1 max-w-xs">
               <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
@@ -337,7 +319,6 @@ export default function DashboardPetugas() {
             </motion.button>
           </div>
 
-          {/* Form Tambah Buku */}
           {showForm && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -345,70 +326,79 @@ export default function DashboardPetugas() {
               className="bg-white rounded-2xl p-6 border border-primary/20 shadow-sm"
             >
               <h3 className="font-bold text-gray-800 mb-5">Form Tambah Buku Baru</h3>
-              <form onSubmit={handleTambahBuku} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <form onSubmit={handleTambahBuku} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Kode Buku *</label>
+                  <input required type="text" placeholder="BK011" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.kode} onChange={e => setFormBuku({ ...formBuku, kode: e.target.value })} />
+                </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Judul Buku *</label>
                   <input required type="text" placeholder="Mastering Next.js" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.judul} onChange={e => setFormBuku({ ...formBuku, judul: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Penulis *</label>
-                  <input required type="text" placeholder="Nama Penulis" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.penulis} onChange={e => setFormBuku({ ...formBuku, penulis: e.target.value })} />
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Pengarang *</label>
+                  <input required type="text" placeholder="Nama Pengarang" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.pengarang} onChange={e => setFormBuku({ ...formBuku, pengarang: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Penerbit</label>
                   <input type="text" placeholder="Nama Penerbit" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.penerbit} onChange={e => setFormBuku({ ...formBuku, penerbit: e.target.value })} />
                 </div>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tahun Terbit</label>
-                    <input type="number" min="1900" max="2100" placeholder="2024" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.tahun_terbit} onChange={e => setFormBuku({ ...formBuku, tahun_terbit: e.target.value })} />
-                  </div>
-                  <div className="w-28">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tahun Terbit</label>
+                  <input type="number" min="1900" max="2100" placeholder="2024" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.tahun} onChange={e => setFormBuku({ ...formBuku, tahun: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Kategori</label>
+                  <input type="text" placeholder="Novel, Komputer..." className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.kategori} onChange={e => setFormBuku({ ...formBuku, kategori: e.target.value })} />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3 flex gap-3 mt-2">
+                  <div className="w-32">
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">Stok *</label>
                     <input required type="number" min="0" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" value={formBuku.stok} onChange={e => setFormBuku({ ...formBuku, stok: Number(e.target.value) })} />
                   </div>
-                </div>
-                <div className="sm:col-span-2 flex justify-end gap-3">
-                  <button type="button" onClick={() => setShowForm(false)} className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Batal</button>
-                  <button type="submit" className="px-5 py-2.5 text-sm font-semibold text-white bg-primary rounded-xl hover:bg-primary-dark transition-colors shadow-sm shadow-primary/30">Simpan</button>
+                  <div className="flex-1 flex justify-end gap-3 items-end">
+                    <button type="button" onClick={() => setShowForm(false)} className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Batal</button>
+                    <button type="submit" className="px-5 py-2.5 text-sm font-semibold text-white bg-primary rounded-xl hover:bg-primary-dark transition-colors shadow-sm shadow-primary/30">Simpan</button>
+                  </div>
                 </div>
               </form>
             </motion.div>
           )}
 
-          {/* Tabel Buku */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Kode</th>
                     <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Judul</th>
-                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Penulis</th>
-                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">Penerbit</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Pengarang</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">Kategori</th>
                     <th className="text-center px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Stok</th>
                     <th className="text-center px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {bukuTampil.map(b => (
-                    <tr key={b.id} className="hover:bg-gray-50/80 transition-colors">
+                    <tr key={b.kode} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="px-5 py-4 font-mono text-gray-500">{b.kode}</td>
                       <td className="px-5 py-4 font-semibold text-gray-800">{b.judul}</td>
-                      <td className="px-5 py-4 text-gray-500">{b.penulis}</td>
-                      <td className="px-5 py-4 text-gray-400 hidden md:table-cell">{b.penerbit || '—'}</td>
+                      <td className="px-5 py-4 text-gray-500">{b.pengarang}</td>
+                      <td className="px-5 py-4 text-gray-400 hidden md:table-cell">{b.kategori || '—'}</td>
                       <td className="px-5 py-4 text-center">
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${b.stok > 0 ? 'bg-teal-50 text-primary' : 'bg-red-50 text-red-500'}`}>
                           {b.stok}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-center">
-                        <button onClick={() => handleHapusBuku(b.id, b.judul)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <button onClick={() => handleHapusBuku(b.kode, b.judul)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                           <FiTrash2 size={15} />
                         </button>
                       </td>
                     </tr>
                   ))}
                   {bukuTampil.length === 0 && (
-                    <tr><td colSpan={5} className="px-5 py-12 text-center text-gray-400">Tidak ada buku ditemukan</td></tr>
+                    <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400">Tidak ada buku ditemukan</td></tr>
                   )}
                 </tbody>
               </table>
@@ -430,28 +420,28 @@ export default function DashboardPetugas() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Nama</th>
-                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Username</th>
-                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Telepon</th>
-                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Tgl Bergabung</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Kode</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Email</th>
+                    <th className="text-left px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Telepon</th>
                     <th className="text-center px-5 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {anggota.map(a => (
-                    <tr key={a.id} className="hover:bg-gray-50/80 transition-colors">
+                    <tr key={a.kode} className="hover:bg-gray-50/80 transition-colors">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs uppercase flex-shrink-0">
-                            {a.nama_lengkap.charAt(0)}
+                            {a.nama.charAt(0)}
                           </div>
-                          <span className="font-semibold text-gray-800">{a.nama_lengkap}</span>
+                          <span className="font-semibold text-gray-800">{a.nama}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-gray-500 font-mono text-xs">{a.username}</td>
-                      <td className="px-5 py-4 text-gray-500 hidden sm:table-cell">{a.nomor_telepon}</td>
-                      <td className="px-5 py-4 text-gray-400 hidden lg:table-cell">{new Date(a.tanggal_bergabung).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                      <td className="px-5 py-4 text-gray-500 font-mono text-xs">{a.kode}</td>
+                      <td className="px-5 py-4 text-gray-500 hidden sm:table-cell">{a.email}</td>
+                      <td className="px-5 py-4 text-gray-400 hidden lg:table-cell">{a.no_telepon}</td>
                       <td className="px-5 py-4 text-center">
-                        <button onClick={() => handleHapusAnggota(a.id, a.nama_lengkap)} className="px-3 py-1.5 bg-red-50 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors">
+                        <button onClick={() => handleHapusAnggota(a.kode, a.nama)} className="px-3 py-1.5 bg-red-50 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors">
                           Banned
                         </button>
                       </td>
@@ -474,11 +464,11 @@ export default function DashboardPetugas() {
             </div>
           ) : (
             pinjamAktif.map(p => {
-              const denda = hitungDenda(p.tanggal_tenggat);
+              const denda = hitungDenda(p.jatuh_tempo);
               const isTelat = denda > 0;
               return (
                 <motion.div
-                  key={p.id}
+                  key={p.kode}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={`bg-white rounded-2xl p-5 border ${isTelat ? 'border-red-200' : 'border-gray-100'} shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4`}
@@ -491,7 +481,7 @@ export default function DashboardPetugas() {
                       <p className="font-bold text-gray-800">{p.judul}</p>
                       <p className="text-sm text-gray-500 mt-0.5">Peminjam: <span className="font-semibold text-gray-700">{p.nama_lengkap}</span></p>
                       <p className={`text-xs mt-1 ${isTelat ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
-                        Tenggat: {new Date(p.tanggal_tenggat).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        Tenggat: {new Date(p.jatuh_tempo).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                         {isTelat && ` — TERLAMBAT`}
                       </p>
                     </div>
@@ -522,7 +512,6 @@ export default function DashboardPetugas() {
       {/* ─── TAB LAPORAN ─── */}
       {activeTab === 'laporan' && (
         <div className="space-y-6">
-          {/* Summary Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Dipinjam Aktif" value={pinjamAktif.length} icon={<FiClock size={22} className="text-primary" />} color="bg-teal-50" />
             <StatCard label="Pernah Terlambat" value={pinjamTelat.length} icon={<FiAlertTriangle size={22} className="text-red-500" />} color="bg-red-50" />
@@ -530,16 +519,16 @@ export default function DashboardPetugas() {
             <StatCard label="Total Buku" value={buku.length} icon={<FiBook size={22} className="text-purple-500" />} color="bg-purple-50" />
           </div>
 
-          {/* Peminjaman Aktif — sorted by urutkanPeminjaman O(n log n) */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
               <div className="w-3 h-3 rounded-full bg-primary"></div>
-              <h3 className="font-bold text-gray-800 text-sm">Peminjaman Aktif — Diurutkan Deadline Terdekat <span className="text-xs text-gray-400 font-normal">(awasi peminjaman pengguna)</span></h3>
+              <h3 className="font-bold text-gray-800 text-sm">Peminjaman Aktif — Diurutkan Deadline Terdekat</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-50 bg-gray-50">
+                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Kode TRX</th>
                     <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Buku</th>
                     <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Peminjam</th>
                     <th className="text-left px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Tenggat</th>
@@ -548,14 +537,15 @@ export default function DashboardPetugas() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {pinjamAktif.map(p => {
-                    const denda = hitungDenda(p.tanggal_tenggat);
+                    const denda = hitungDenda(p.jatuh_tempo);
                     return (
-                      <tr key={p.id} className="hover:bg-gray-50/80">
+                      <tr key={p.kode} className="hover:bg-gray-50/80">
+                        <td className="px-5 py-3 font-mono text-gray-500 text-xs">{p.kode}</td>
                         <td className="px-5 py-3 font-semibold text-gray-800">{p.judul}</td>
                         <td className="px-5 py-3 text-gray-500 hidden sm:table-cell">{p.nama_lengkap}</td>
                         <td className="px-5 py-3">
                           <span className={`text-xs font-semibold ${denda > 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                            {new Date(p.tanggal_tenggat).toLocaleDateString('id-ID')}
+                            {new Date(p.jatuh_tempo).toLocaleDateString('id-ID')}
                           </span>
                         </td>
                         <td className="px-5 py-3 text-right">
@@ -564,13 +554,12 @@ export default function DashboardPetugas() {
                       </tr>
                     );
                   })}
-                  {pinjamAktif.length === 0 && <tr><td colSpan={4} className="px-5 py-10 text-center text-gray-400">Tidak ada peminjaman aktif</td></tr>}
+                  {pinjamAktif.length === 0 && <tr><td colSpan={5} className="px-5 py-10 text-center text-gray-400">Tidak ada peminjaman aktif</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Histori Keterlambatan */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
               <div className="w-3 h-3 rounded-full bg-red-400"></div>
@@ -588,10 +577,10 @@ export default function DashboardPetugas() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {pinjamTelat.map(p => (
-                    <tr key={p.id} className="hover:bg-gray-50/80">
+                    <tr key={p.kode} className="hover:bg-gray-50/80">
                       <td className="px-5 py-3 font-semibold text-gray-800">{p.nama_lengkap}</td>
                       <td className="px-5 py-3 text-gray-500 hidden sm:table-cell">{p.judul}</td>
-                      <td className="px-5 py-3 text-gray-500">{p.tanggal_dikembalikan ? new Date(p.tanggal_dikembalikan).toLocaleDateString('id-ID') : '—'}</td>
+                      <td className="px-5 py-3 text-gray-500">{p.tgl_kembali ? new Date(p.tgl_kembali).toLocaleDateString('id-ID') : '—'}</td>
                       <td className="px-5 py-3 text-right font-bold text-red-600">Rp {p.denda.toLocaleString('id-ID')}</td>
                     </tr>
                   ))}
@@ -605,5 +594,3 @@ export default function DashboardPetugas() {
     </DashboardLayout>
   );
 }
-
-

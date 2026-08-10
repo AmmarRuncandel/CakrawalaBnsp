@@ -39,18 +39,18 @@ export const getBuku = async (_req: Request, res: Response): Promise<void> => {
  */
 export const tambahBuku = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { judul, penulis, penerbit, tahun_terbit, stok } = req.body;
+    const { kode, judul, pengarang, penerbit, tahun, kategori, stok } = req.body;
 
     // Validasi field wajib sebelum menyentuh database
-    if (!judul || !penulis || stok === undefined) {
-      res.status(400).json({ error: 'Judul, penulis, dan stok wajib diisi' });
+    if (!kode || !judul || !pengarang || stok === undefined) {
+      res.status(400).json({ error: 'Kode, judul, pengarang, dan stok wajib diisi' });
       return;
     }
     
     // Parameterized query (?) mencegah SQL Injection, lebih aman dari string concatenation
     await db.query(
-      'INSERT INTO buku (judul, penulis, penerbit, tahun_terbit, stok) VALUES (?, ?, ?, ?, ?)',
-      [judul, penulis, penerbit || null, tahun_terbit || null, stok]
+      'INSERT INTO buku (kode, judul, pengarang, penerbit, tahun, kategori, stok) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [kode, judul, pengarang, penerbit || null, tahun || null, kategori || null, stok]
     );
     res.status(201).json({ message: 'Buku berhasil ditambahkan' });
   } catch {
@@ -66,8 +66,8 @@ export const tambahBuku = async (req: Request, res: Response): Promise<void> => 
  */
 export const hapusBuku = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
-    await db.query('DELETE FROM buku WHERE id = ?', [id]);
+    const { id } = req.params; // tetap pakai id dari route api.ts, tapi merepresentasikan kode
+    await db.query('DELETE FROM buku WHERE kode = ?', [id]);
     res.json({ message: 'Buku berhasil dihapus' });
   } catch {
     res.status(500).json({ error: 'Internal Server Error' });

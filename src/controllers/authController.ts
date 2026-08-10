@@ -25,46 +25,48 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
     
-    // Query langsung membandingkan password plain-text sesuai data seeder.
-    // Catatan: pada production, sebaiknya menggunakan bcrypt.compare()
-    // karena password harus di-hash terlebih dahulu sebelum disimpan.
+    // Cek tabel users (admin) terlebih dahulu
     const [users] = await db.query<RowDataPacket[]>(
-      'SELECT * FROM users WHERE username = ? AND password = ?',
+      'SELECT * FROM users WHERE username = ? AND password = SHA2(?, 256)',
       [username, password]
     );
     
-    if (users.length === 0) {
-      // HTTP 401 Unauthorized: kredensial valid secara format, tapi salah
-      res.status(401).json({ error: 'Username atau password salah' });
+    if (users.length > 0) {
+      const user = users[0];
+      res.json({
+        message: 'Login berhasil (Admin)',
+        user: {
+          id: user.username,
+          username: user.nama_petugas,
+          role: 'admin',
+          anggotaId: null
+        }
+      });
       return;
     }
-    
-    const user = users[0];
-    
-    // anggotaId hanya relevan untuk role 'pengguna'. Petugas tidak memiliki
-    // entri di tabel anggota, sehingga kita skip query ini untuk efisiensi.
-    // FE menggunakan anggotaId ini saat melakukan POST /api/peminjaman.
-    let anggotaId = null;
-    if (user.role === 'pengguna') {
-      const [anggota] = await db.query<RowDataPacket[]>(
-        'SELECT id FROM anggota WHERE user_id = ?',
-        [user.id]
-      );
-      // Ambil anggota.id jika ada, null jika pengguna belum terdaftar sebagai anggota
-      if (anggota.length > 0) anggotaId = anggota[0].id;
+
+    // Jika tidak ditemukan di admin, cek tabel anggota (pengguna)
+    const [anggota] = await db.query<RowDataPacket[]>(
+      'SELECT * FROM anggota WHERE kode = ? AND email = ?',
+      [username, password]
+    );
+
+    if (anggota.length > 0) {
+      const member = anggota[0];
+      res.json({
+        message: 'Login berhasil (Pengguna)',
+        user: {
+          id: member.kode,
+          username: member.nama,
+          role: 'pengguna',
+          anggotaId: member.kode
+        }
+      });
+      return;
     }
 
-    // Kembalikan data minimal yang dibutuhkan FE:
-    // id (identitas), username (tampilan), role (routing), anggotaId (peminjaman)
-    res.json({
-      message: 'Login berhasil',
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        anggotaId
-      }
-    });
+    // Jika tidak ditemukan di kedua tabel
+    res.status(401).json({ error: 'Username atau password salah' });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal Server Error' });

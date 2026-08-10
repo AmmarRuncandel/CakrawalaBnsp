@@ -15,7 +15,7 @@
  *   - hitungDendaRealtime: Menghitung denda secara instan berdasarkan selisih waktu.
  * Pembuat      : Muhammad Ammar Luthfi Azzufar
  * Tanggal Dibuat : 10-08-2026
- * Versi        : 1.0.0
+ * Versi        : 2.0.0 (Skema Baru)
  * ============================================================
  */
 
@@ -26,35 +26,26 @@ import { FiSearch, FiBookOpen, FiClock, FiAlertCircle, FiCheckCircle } from 'rea
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { cariBuku } from '../../utils/algorithms';
 
-/**
- * Interface sesuai schema SQL:
- * tabel buku: id, judul, penulis, penerbit, tahun_terbit, stok
- */
 interface Buku {
-  id: number;
+  kode: string;
   judul: string;
-  penulis: string;
+  pengarang: string;
   penerbit: string;
-  tahun_terbit: number;
+  tahun: number;
+  kategori: string;
   stok: number;
 }
 
-/**
- * Interface sesuai schema SQL:
- * tabel peminjaman JOIN buku: id, anggota_id, buku_id, tanggal_pinjam,
- * tanggal_tenggat, tanggal_dikembalikan, status, denda, judul
- */
 interface Peminjaman {
-  id: number;
+  kode: string;
   judul: string;
-  tanggal_pinjam: string;
-  tanggal_tenggat: string;
-  tanggal_dikembalikan: string | null;
-  status: 'dipinjam' | 'dikembalikan';
+  tgl_pinjam: string;
+  jatuh_tempo: string;
+  tgl_kembali: string | null;
+  status: 'Kembali' | 'Dipinjam' | 'Terlambat';
   denda: number;
 }
 
-// Warna cover buku berdasarkan index
 const COVER_COLORS = [
   'from-teal-400 to-teal-600',
   'from-blue-400 to-blue-600',
@@ -99,7 +90,6 @@ export default function DashboardPengguna() {
       return;
     }
     try {
-      // GET /api/peminjaman/anggota/:anggotaId — join buku, return judul
       const res = await fetch(`http://localhost:5000/api/peminjaman/anggota/${user.anggotaId}`);
       if (!res.ok) throw new Error('Network response was not ok');
       const data: Peminjaman[] = await res.json();
@@ -113,17 +103,17 @@ export default function DashboardPengguna() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchBuku();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPeminjaman();
   }, [fetchBuku, fetchPeminjaman]);
 
-  // cariBuku — Linear Search O(n), Syarat Wajib BNSP
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setKeyword(val);
     setBukuDitampilkan(cariBuku(semuaBuku, val));
   };
 
-  const handlePinjam = async (bukuId: number, judulBuku: string) => {
+  const handlePinjam = async (bukuKode: string, judulBuku: string) => {
     if (!user.anggotaId) {
       Swal.fire({ icon: 'error', title: 'Tidak dapat meminjam', text: 'Anda belum terdaftar sebagai anggota resmi.', confirmButtonColor: '#44A1A4' });
       return;
@@ -146,8 +136,7 @@ export default function DashboardPengguna() {
         const res = await fetch('http://localhost:5000/api/peminjaman', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // anggota_id dan buku_id sesuai kolom tabel peminjaman
-          body: JSON.stringify({ anggota_id: user.anggotaId, buku_id: bukuId })
+          body: JSON.stringify({ kode_anggota: user.anggotaId, kode_buku: bukuKode })
         });
         const data = await res.json();
         if (res.ok) {
@@ -164,9 +153,8 @@ export default function DashboardPengguna() {
     }
   };
 
-  // Hitung denda realtime di FE (sebelum dikembalikan): O(1)
-  const hitungDendaRealtime = (tanggal_tenggat: string): number => {
-    const tenggat = new Date(tanggal_tenggat).getTime();
+  const hitungDendaRealtime = (jatuh_tempo: string): number => {
+    const tenggat = new Date(jatuh_tempo).getTime();
     const sekarang = new Date().getTime();
     if (sekarang > tenggat) {
       return Math.floor((sekarang - tenggat) / (1000 * 3600 * 24)) * 1000;
@@ -174,8 +162,8 @@ export default function DashboardPengguna() {
     return 0;
   };
 
-  const pinjamAktif = peminjaman.filter(p => p.status === 'dipinjam');
-  const pinjamSelesai = peminjaman.filter(p => p.status === 'dikembalikan');
+  const pinjamAktif = peminjaman.filter(p => p.status === 'Dipinjam' || p.status === 'Terlambat');
+  const pinjamSelesai = peminjaman.filter(p => p.status === 'Kembali');
 
   return (
     <DashboardLayout
@@ -188,13 +176,12 @@ export default function DashboardPengguna() {
       {/* ─── TAB KATALOG ─── */}
       {activeTab === 'katalog' && (
         <div className="space-y-6">
-          {/* Search */}
           <div className="relative max-w-lg">
             <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
               className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
-              placeholder="Cari judul atau penulis buku..."
+              placeholder="Cari judul atau pengarang buku..."
               value={keyword}
               onChange={handleSearch}
             />
@@ -205,7 +192,6 @@ export default function DashboardPengguna() {
             )}
           </div>
 
-          {/* Grid Buku */}
           {loadingBuku ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -229,13 +215,12 @@ export default function DashboardPengguna() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
               {bukuDitampilkan.map((buku, index) => (
                 <motion.div
-                  key={buku.id}
+                  key={buku.kode}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(index * 0.04, 0.5), duration: 0.3 }}
                   className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col group"
                 >
-                  {/* Cover */}
                   <div className={`h-40 bg-gradient-to-br ${COVER_COLORS[index % COVER_COLORS.length]} flex flex-col items-center justify-center p-4 relative`}>
                     <FiBookOpen size={36} className="text-white/70 mb-2" />
                     <p className="text-white text-xs font-semibold text-center leading-tight line-clamp-2 opacity-90">
@@ -247,11 +232,10 @@ export default function DashboardPengguna() {
                       </div>
                     )}
                   </div>
-                  {/* Info */}
                   <div className="p-4 flex flex-col flex-1">
                     <h3 className="text-sm font-bold text-gray-800 line-clamp-2 leading-tight mb-1">{buku.judul}</h3>
-                    <p className="text-xs text-gray-500 mb-1">{buku.penulis}</p>
-                    <p className="text-xs text-gray-400 mb-3">{buku.penerbit} · {buku.tahun_terbit}</p>
+                    <p className="text-xs text-gray-500 mb-1">{buku.pengarang}</p>
+                    <p className="text-xs text-gray-400 mb-3">{buku.penerbit} · {buku.tahun}</p>
                     <div className="mt-auto flex items-center justify-between">
                       <span className={`text-xs font-semibold px-2 py-1 rounded-full ${buku.stok > 0 ? 'bg-teal-50 text-primary' : 'bg-red-50 text-red-500'}`}>
                         Stok: {buku.stok}
@@ -259,7 +243,7 @@ export default function DashboardPengguna() {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => handlePinjam(buku.id, buku.judul)}
+                        onClick={() => handlePinjam(buku.kode, buku.judul)}
                         disabled={buku.stok === 0}
                         className="px-3 py-1.5 bg-primary text-white text-xs rounded-lg font-semibold hover:bg-primary-dark transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm shadow-primary/30"
                       >
@@ -277,7 +261,6 @@ export default function DashboardPengguna() {
       {/* ─── TAB RIWAYAT ─── */}
       {activeTab === 'dipinjam' && (
         <div className="space-y-6">
-          {/* Aktif */}
           <div>
             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Sedang Dipinjam ({pinjamAktif.length})</h3>
             {pinjamAktif.length === 0 ? (
@@ -288,11 +271,11 @@ export default function DashboardPengguna() {
             ) : (
               <div className="space-y-3">
                 {pinjamAktif.map(p => {
-                  const denda = hitungDendaRealtime(p.tanggal_tenggat);
+                  const denda = hitungDendaRealtime(p.jatuh_tempo);
                   const isTelat = denda > 0;
                   return (
                     <motion.div
-                      key={p.id}
+                      key={p.kode}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       className={`bg-white rounded-2xl p-5 flex items-start justify-between gap-4 border ${isTelat ? 'border-red-200 bg-red-50/50' : 'border-gray-100'} shadow-sm`}
@@ -304,10 +287,10 @@ export default function DashboardPengguna() {
                         <div>
                           <p className="font-bold text-gray-800">{p.judul}</p>
                           <p className="text-xs text-gray-500 mt-1">
-                            Dipinjam: {new Date(p.tanggal_pinjam).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            Dipinjam: {new Date(p.tgl_pinjam).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                           </p>
                           <p className={`text-xs mt-0.5 font-medium ${isTelat ? 'text-red-500' : 'text-gray-500'}`}>
-                            Tenggat: {new Date(p.tanggal_tenggat).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            Tenggat: {new Date(p.jatuh_tempo).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                           </p>
                         </div>
                       </div>
@@ -330,14 +313,13 @@ export default function DashboardPengguna() {
             )}
           </div>
 
-          {/* Selesai */}
           {pinjamSelesai.length > 0 && (
             <div>
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Riwayat Dikembalikan ({pinjamSelesai.length})</h3>
               <div className="space-y-3">
                 {pinjamSelesai.map(p => (
                   <motion.div
-                    key={p.id}
+                    key={p.kode}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="bg-white rounded-2xl p-5 flex items-center justify-between gap-4 border border-gray-100 shadow-sm opacity-70"
@@ -349,7 +331,7 @@ export default function DashboardPengguna() {
                       <div>
                         <p className="font-semibold text-gray-700">{p.judul}</p>
                         <p className="text-xs text-gray-400 mt-1">
-                          Dikembalikan: {p.tanggal_dikembalikan ? new Date(p.tanggal_dikembalikan).toLocaleDateString('id-ID') : '-'}
+                          Dikembalikan: {p.tgl_kembali ? new Date(p.tgl_kembali).toLocaleDateString('id-ID') : '-'}
                         </p>
                       </div>
                     </div>

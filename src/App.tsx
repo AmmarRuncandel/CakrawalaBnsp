@@ -19,7 +19,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import DashboardPengguna from './pages/pengguna/DashboardPengguna';
-import DashboardPetugas from './pages/petugas/DashboardPetugas';
+import DashboardAdmin from './pages/petugas/DashboardAdmin';
 
 /**
  * ProtectedRoute — Guard komponen untuk route yang memerlukan autentikasi.
@@ -48,7 +48,7 @@ const ProtectedRoute = ({ children, allowedRole }: { children: React.ReactNode, 
   // Guard kedua: cek apakah role cocok dengan halaman yang dituju.
   // Redirect ke dashboard role aktual user agar tidak muncul blank page.
   if (user.role !== allowedRole) {
-    return <Navigate to={user.role === 'petugas' ? '/petugas' : '/pengguna'} replace />;
+    return <Navigate to={user.role === 'admin' ? '/admin/dashboard' : '/pengguna/dashboard'} replace />;
   }
 
   // Semua guard lolos: render konten halaman yang diminta
@@ -64,7 +64,7 @@ function App() {
 
         {/* Route terlindungi: hanya untuk role 'pengguna' */}
         <Route
-          path="/pengguna"
+          path="/pengguna/dashboard"
           element={
             <ProtectedRoute allowedRole="pengguna">
               <DashboardPengguna />
@@ -72,12 +72,12 @@ function App() {
           }
         />
 
-        {/* Route terlindungi: hanya untuk role 'petugas' */}
+        {/* Route terlindungi: hanya untuk role 'admin' */}
         <Route
-          path="/petugas"
+          path="/admin/dashboard"
           element={
-            <ProtectedRoute allowedRole="petugas">
-              <DashboardPetugas />
+            <ProtectedRoute allowedRole="admin">
+              <DashboardAdmin />
             </ProtectedRoute>
           }
         />

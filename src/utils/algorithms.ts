@@ -41,7 +41,7 @@
  * - Disebut O(n) jika m dianggap konstan (keyword pendek)
  * KOMPLEKSITAS RUANG: O(k) — k = jumlah elemen yang lolos filter
  */
-export function cariBuku<T extends { judul: string; penulis: string }>(
+export function cariBuku<T extends { judul: string; pengarang: string }>(
   dataBuku: T[],
   keyword: string
 ): T[] {
@@ -57,7 +57,7 @@ export function cariBuku<T extends { judul: string; penulis: string }>(
   return dataBuku.filter(
     (buku) =>
       buku.judul.toLowerCase().includes(lowerKeyword) ||
-      buku.penulis.toLowerCase().includes(lowerKeyword)
+      buku.pengarang.toLowerCase().includes(lowerKeyword)
   );
 }
 
@@ -81,7 +81,7 @@ export function cariBuku<T extends { judul: string; penulis: string }>(
  * - Worst Case   : O(n log n) — lebih baik dari Quicksort di kasus tertentu
  * KOMPLEKSITAS RUANG: O(n) — spread operator [...] membuat salinan baru
  */
-export function urutkanPeminjaman<T extends { tanggal_tenggat: string | Date }>(
+export function urutkanPeminjaman<T extends { jatuh_tempo: string | Date }>(
   dataPeminjaman: T[]
 ): T[] {
   // Spread operator untuk membuat shallow copy — kita TIDAK boleh mutasi
@@ -91,8 +91,8 @@ export function urutkanPeminjaman<T extends { tanggal_tenggat: string | Date }>(
   return sortedData.sort((a, b) => {
     // Konversi ke timestamp (milidetik) untuk perbandingan numerik yang presisi.
     // Perbandingan string tanggal langsung (a > b) bisa gagal untuk format non-ISO.
-    const timeA = new Date(a.tanggal_tenggat).getTime();
-    const timeB = new Date(b.tanggal_tenggat).getTime();
+    const timeA = new Date(a.jatuh_tempo).getTime();
+    const timeB = new Date(b.jatuh_tempo).getTime();
 
     // timeA - timeB → Ascending: deadline terdekat (nilai paling kecil) di posisi pertama.
     // Ini penting agar petugas dapat langsung melihat buku yang paling urgent di baris atas.

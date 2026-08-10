@@ -28,7 +28,7 @@ import {
 
 interface Props {
   children: ReactNode;
-  role: 'petugas' | 'pengguna';
+  role: 'admin' | 'pengguna';
   title: string;
   subtitle?: string;
   activeTab?: string;
@@ -69,7 +69,7 @@ export default function DashboardLayout({
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const nav = role === 'petugas' ? PETUGAS_NAV : PENGGUNA_NAV;
+  const nav = role === 'admin' ? PETUGAS_NAV : PENGGUNA_NAV;
 
   const handleLogout = () => {
     Swal.fire({
